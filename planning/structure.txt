@@ -1,0 +1,20 @@
+mnc-web/
+├── index.html          # Main entry point 
+├── css/
+│   └── style.css       # Main styles
+├── js/
+│   ├── app.js          # Main application logic
+│   ├── components/     # Web components
+│   │   ├── mnc-button.js       # Button component
+│   │   └── mnc-interface.js    # Main interface component
+│   ├── audio/
+│   │   ├── audio-engine.js     # Tone.js wrapper
+│   │   └── instruments.js      # Instrument definitions
+│   ├── theory/
+│   │   ├── scales.js           # Scale definitions
+│   │   └── chord-theory.js     # Chord logic
+│   └── motion/
+│       └── accelerometer.js    # Device motion handling
+└── assets/
+    ├── sounds/               # Sound samples if needed
+    └── images/               # Images for UI

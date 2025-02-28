@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Movements, Not Chords</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tonaljs/tonal/browser/tonal.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Movements, Not Chords</h1>
+        </header>
+        
+        <div id="permission-screen" class="screen active">
+            <h2>Welcome to MNC</h2>
+            <p>This app uses your device's motion sensors to create music.</p>
+            <button id="start-button" class="primary-button">Start Playing</button>
+        </div>
+        
+        <div id="main-interface" class="screen">
+            <div id="touch-grid"></div>
+            <div id="motion-display">
+                <div class="motion-value">Roll: <span id="roll-value">0</span>°</div>
+                <div class="motion-value">Pitch: <span id="pitch-value">0</span>°</div>
+            </div>
+            <div id="current-chord">Current Chord: <span id="chord-name">C major</span></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/motion/accelerometer.js"></script>
+    <script src="js/audio/audio-engine.js"></script>
+    <script src="js/audio/instruments.js"></script>
+    <script src="js/theory/scales.js"></script>
+    <script src="js/theory/chord-theory.js"></script>
+    <script src="js/components/mnc-button.js"></script>
+    <script src="js/components/mnc-interface.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html> 
