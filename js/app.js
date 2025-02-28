@@ -31,31 +31,31 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Create the touch grid UI
     function createTouchGrid() {
-        // Define button labels/functions in reverse order (control buttons at top, Roman numerals at bottom)
+        // Define button labels/functions exactly matching Python
         const buttonConfig = [
-            // Top row - Control buttons (previously bottom)
+            // Control row
+            { label: "Fam↑", function: "fam_up", pyFunc: "makeVertFamilyUp" },
+            { label: "Fam→", function: "fam_across", pyFunc: "makeHorizFamily" },
+            { label: "Fam↓", function: "fam_down", pyFunc: "makeVertFamilyDown" },
             { label: "", function: "" },
-            { label: "Fam↓", function: "octaveUp" },
-            { label: "Fam→", function: "familyAcross" },
-            { label: "Fam↑", function: "familyDown" },
             
-            // Second row - More control buttons
-            { label: "Dom", function: "makeDominant" },
-            { label: "Off", function: "makeOffChord" },
-            { label: "On", function: "makeOnChord" },
-            { label: "Pretty", function: "prettySubstitution" },
+            // Second row
+            { label: "Dom", function: "dom", pyFunc: "makeDominant" },
+            { label: "Alt", function: "alt", pyFunc: "makeAlternate" },
+            { label: "Off", function: "off", pyFunc: "makeOffChord" },
+            { label: "On", function: "on", pyFunc: "makeOnChord" },
             
-            // Third row - Upper chord numerals
-            { label: "I", function: "tonicOctave" },
-            { label: "vii°", function: "leading" },
-            { label: "vi", function: "submediant" },
-            { label: "V", function: "dominant" },
+            // Upper chord row
+            { label: "I", function: "I_octave", pyFunc: "tonic" },
+            { label: "vii°", function: "vii", pyFunc: "leading" },
+            { label: "vi", function: "vi", pyFunc: "submediant" },
+            { label: "V", function: "V", pyFunc: "dominant" },
             
-            // Bottom row - Lower chord numerals
-            { label: "IV", function: "subdominant" },
-            { label: "iii", function: "mediant" },
-            { label: "ii", function: "supertonic" },
-            { label: "I", function: "tonic" }
+            // Bottom chord row
+            { label: "IV", function: "IV", pyFunc: "subdominant" },
+            { label: "iii", function: "iii", pyFunc: "mediant" },
+            { label: "ii", function: "ii", pyFunc: "supertonic" },
+            { label: "I", function: "I", pyFunc: "tonic" }
         ];
         
         // Create 16 buttons (4x4 grid)
@@ -159,21 +159,29 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Start listening to device motion
             motionSensor = startAccelerometerListener((data) => {
+                // Make sure we have all required properties
+                // Some browsers provide different motion data formats
+                console.log('Raw motion data:', data);
+                
+                // Apply restrictions to motion data
+                data = restrictMotionData(data);
+                
                 // Only show the highlighted values (blue boxes)
+                // Note the change from data.roll to data.normalizedRoll
                 document.getElementById('motion-display').innerHTML = `
-                    <div class="motion-value highlight">Roll: ${data.roll.toFixed(1)}°</div>
-                    <div class="motion-value highlight">Pitch: ${data.pitch.toFixed(1)}°</div>
+                    <div class="motion-value highlight">Roll: ${(data.normalizedRoll * 100).toFixed(1)}%</div>
+                    <div class="motion-value highlight">Pitch: ${(data.normalizedPitch * 100).toFixed(1)}%</div>
                 `;
                 
-                // Show current chord numeral at the top instead of motion values
+                // Show current chord numeral at the top
                 document.querySelector('header h1').textContent = 
                     `Current Chord: ${ChordTheory.getCurrentChordName()}`;
                 
-                // Process motion for sound generation
+                // Process motion for silent chord calculation
                 processMotionData(data);
                 
-                // Update the visual indicator
-                updateOrientationVisual(data.roll, data.pitch);
+                // Update the visual indicator using normalized values
+                updateOrientationVisual(data.normalizedRoll * 100, data.normalizedPitch * 100);
                 
                 // Display the current voicing type at the bottom
                 updateVoicingTypeDisplay(data);
@@ -189,14 +197,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Handle button touch events
-    function handleButtonTouch(event) {
-        event.preventDefault();
-        const button = event.currentTarget;
-        button.classList.add('active');
+    // Handle button touch - matching Python approach
+    function handleButtonTouch(e) {
+        const buttonId = parseInt(e.target.dataset.buttonId, 10);
+        const functionName = e.target.dataset.function;
         
-        const buttonId = parseInt(button.dataset.buttonId);
-        handleButtonPress(buttonId);
+        console.log(`Button ${buttonId} touched (${functionName})`);
+        
+        // Play button sound
+        playButtonSound(buttonId);
+        
+        // If this is a chord button, handle it accordingly
+        if (functionName) {
+            // Call the appropriate function in ChordTheory (matching Python)
+            ChordTheory.handleButtonPress(functionName);
+            
+            // Get the latest motion data
+            const motionData = motionSensor ? motionSensor.getLatestData() : {normalizedRoll: 0, normalizedPitch: 0};
+            
+            // Apply restrictions to motion data (like Python)
+            const restrictedData = restrictMotionData(motionData);
+            
+            // Process motion data into a chord
+            currentCalculatedChord = ChordTheory.processMotionData(restrictedData);
+            
+            // Play the chord
+            playCurrentChord();
+            
+            // Update the chord display
+            updateChordDisplay();
+        }
     }
     
     function handleButtonRelease(event) {
@@ -208,62 +238,11 @@ document.addEventListener('DOMContentLoaded', () => {
         handleButtonReleaseAction(buttonId);
     }
     
-    function handleButtonPress(buttonId) {
-        console.log('Button pressed:', buttonId);
-        
-        // Get the function name from the button
-        const button = document.querySelector(`[data-button-id="${buttonId}"]`);
-        const functionName = button?.dataset.function;
-        
-        if (!functionName || functionName === '') {
-            console.log('No function assigned to this button');
-            return;
-        }
-        
-        // Map the new button IDs to functions based on position
-        // Bottom row contains chord numerals 1-4
-        if (buttonId >= 12 && buttonId <= 15) {
-            // Convert from button ID to chord numeral (15 → 1, 14 → 2, etc.)
-            const numeralIndex = 15 - buttonId;
-            ChordTheory.chordNumeral = numeralIndex + 1;
-            ChordTheory.offChordLock = false;
-            
-            // Play the chord
-            playCurrentChord();
-            
-            // Update display
-            updateChordDisplay();
-        } 
-        // Third row contains chord numerals 5-8
-        else if (buttonId >= 8 && buttonId <= 11) {
-            // Convert from button ID to chord numeral (11 → 5, 10 → 6, etc.)
-            const numeralIndex = 11 - buttonId + 4;
-            ChordTheory.chordNumeral = numeralIndex + 1;
-            ChordTheory.offChordLock = false;
-            
-            // Play the chord
-            playCurrentChord();
-            
-            // Update display
-            updateChordDisplay();
-        }
-        // Special function buttons
-        else {
-            handleSpecialButtonPress(buttonId, functionName);
-        }
-    }
-    
-    function handleButtonReleaseAction(buttonId) {
-        console.log('Button released action:', buttonId);
-        
-        // Release the button sound
-        if (window.currentButtonSynth) {
-            window.currentButtonSynth.triggerRelease();
-        }
-    }
-    
     function processMotionData(data) {
-        // Only process motion at certain intervals to avoid overwhelming the system
+        // Apply the same restrictions
+        data = restrictMotionData(data);
+        
+        // Only process motion at certain intervals
         const now = Date.now();
         if (now - lastMotionProcessTime < MOTION_THROTTLE) return;
         lastMotionProcessTime = now;
@@ -485,39 +464,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Add this function to determine and display the current voicing type
     function updateVoicingTypeDisplay(data) {
-        // Calculate contraryPitch from data (similar to processMotionData)
+        // Get the normalized roll (should be 0 to 1 based on our restriction)
         const roll = data.normalizedRoll;
-        const contraryPitch = ChordTheory.scaleRoot + Math.floor((roll + 1) * 36);
         
-        // Determine voicing type based on the distance from pivot
+        // Map the roll directly to a voicing type index (no need for all the distance calculations)
         let voicingType = "Unison";
         
-        // Only calculate if roll is significant
-        if (Math.abs(roll) > 0.05) {
-            const distance = ChordTheory.pivotPitch - contraryPitch;
-            
-            if (distance <= 0) {
-                voicingType = "Unison";
-            } else if (distance <= 3) {
-                voicingType = "Third";
-            } else if (distance <= 5) {
-                voicingType = "Triad";
-            } else if (distance <= 8) {
-                voicingType = "Shell";
-            } else if (distance <= 12) {
-                voicingType = "Octave";
-            } else if (distance <= 18) {
-                voicingType = "Drop 2";
-            } else if (distance <= 22) {
-                voicingType = "Drop 3";
-            } else if (distance <= 25) {
-                voicingType = "Drop 2&4";
-            } else {
-                voicingType = "Double Octave";
-            }
+        if (roll === 0) {
+            voicingType = "Unison";
+        } else if (roll < 0.12) {
+            voicingType = "Third";
+        } else if (roll < 0.25) {
+            voicingType = "Triad";
+        } else if (roll < 0.37) {
+            voicingType = "Shell";
+        } else if (roll < 0.5) {
+            voicingType = "Octave";
+        } else if (roll < 0.62) {
+            voicingType = "Drop 2";
+        } else if (roll < 0.75) {
+            voicingType = "Drop 3";
+        } else if (roll < 0.87) {
+            voicingType = "Drop 2&4";
+        } else {
+            voicingType = "Double Octave";
         }
         
-        // Display the voicing type at the bottom
+        // Debug output to help tune the thresholds
+        console.log(`Roll: ${roll.toFixed(2)}, Voicing: ${voicingType}`);
+        
+        // Display the voicing type
         const voicingDisplay = document.getElementById('voicing-display') || createVoicingDisplay();
         voicingDisplay.textContent = `Voicing: ${voicingType}`;
     }
@@ -587,6 +563,42 @@ document.addEventListener('DOMContentLoaded', () => {
             
             visualizer.appendChild(container);
         }
+    }
+
+    // First, let's modify the accelerometer data handling to restrict ranges
+    // Add this at the top of your file as a utility function
+    function restrictMotionData(data) {
+        // Ensure we have both raw and normalized values
+        if (data.roll !== undefined && data.normalizedRoll === undefined) {
+            data.normalizedRoll = data.roll / 90; // Convert degrees to normalized value
+        }
+        
+        if (data.pitch !== undefined && data.normalizedPitch === undefined) {
+            data.normalizedPitch = data.pitch / 90; // Convert degrees to normalized value
+        }
+        
+        // Ensure we have raw values even if we get normalized ones
+        if (data.normalizedRoll !== undefined && data.roll === undefined) {
+            data.roll = data.normalizedRoll * 90; // Convert normalized to degrees
+        }
+        
+        if (data.normalizedPitch !== undefined && data.pitch === undefined) {
+            data.pitch = data.normalizedPitch * 90; // Convert normalized to degrees
+        }
+        
+        // Restrict pitch to only negative values (tilting forward)
+        if (data.normalizedPitch > 0) {
+            data.normalizedPitch = 0;
+            data.pitch = 0;
+        }
+        
+        // Restrict roll to only positive values (tilting left)
+        if (data.normalizedRoll < 0) {
+            data.normalizedRoll = 0;
+            data.roll = 0;
+        }
+        
+        return data;
     }
 
     console.log('MNC Web initialized');
