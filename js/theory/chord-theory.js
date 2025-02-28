@@ -47,8 +47,6 @@ const ChordTheory = {
         return `${chordName} ${scaleType}`;
     },
     
-    },
-    
     // Implement contrary motion - full Python implementation
     contraryMotion(contraryPitch) {
         const chord = [];
