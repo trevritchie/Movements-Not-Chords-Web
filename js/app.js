@@ -1,5 +1,7 @@
 // Main application logic
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('MNC Web initializing...');
+    
     // References to DOM elements
     const startButton = document.getElementById('start-button');
     const permissionScreen = document.getElementById('permission-screen');
@@ -473,4 +475,6 @@ document.addEventListener('DOMContentLoaded', () => {
             audioEngine.playBassNote(bassNote);
         }
     }
+
+    console.log('MNC Web initialized');
 }); 
