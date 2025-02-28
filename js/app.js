@@ -21,11 +21,38 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Create the touch grid UI
     function createTouchGrid() {
+        // Define button labels/functions
+        const buttonConfig = [
+            { label: "I", function: "tonic" },
+            { label: "ii", function: "supertonic" },
+            { label: "iii", function: "mediant" },
+            { label: "IV", function: "subdominant" },
+            
+            { label: "V", function: "dominant" },
+            { label: "vi", function: "submediant" },
+            { label: "vii°", function: "leading" },
+            { label: "I+", function: "tonicOctave" },
+            
+            { label: "Off", function: "offChord" },
+            { label: "Dom", function: "makeDominant" },
+            { label: "Alt", function: "alternate" },
+            { label: "Fam↑", function: "familyUp" },
+            
+            { label: "Fam↓", function: "familyDown" },
+            { label: "Fam→", function: "familyAcross" },
+            { label: "Oct↑", function: "octaveUp" },
+            { label: "Oct↓", function: "octaveDown" }
+        ];
+        
         // Create 16 buttons (4x4 grid)
         for (let i = 0; i < 16; i++) {
             const button = document.createElement('div');
             button.className = 'grid-button';
             button.dataset.buttonId = i;
+            button.dataset.function = buttonConfig[i].function;
+            
+            // Add label text
+            button.textContent = buttonConfig[i].label;
             
             // Add touch event handlers
             button.addEventListener('touchstart', handleButtonTouch);
@@ -154,6 +181,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Play the notes
         if (notes.length > 0) {
             audioEngine.playChord(notes);
+            
+            // Also play a bass note for foundation
+            const bassNote = notes[0] - 24; // Two octaves lower
+            audioEngine.playBassNote(bassNote);
         }
     }
     

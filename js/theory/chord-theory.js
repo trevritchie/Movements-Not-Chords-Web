@@ -100,6 +100,33 @@ const ChordTheory = {
         } else {
             return this.obliqueMotion(normalizedPitchValue * 100); // Scale for testing
         }
+    },
+
+    // Add to ChordTheory object
+    makeDominant(enable) {
+        this.dominant = enable !== undefined ? enable : !this.dominant;
+        return this.dominant;
+    },
+
+    setAlternate(enable) {
+        this.alternate = enable !== undefined ? enable : !this.alternate;
+        
+        // Update the scale based on alternate setting
+        this.updateCurrentScale();
+        return this.alternate;
+    },
+
+    updateCurrentScale() {
+        // Base scale selection logic
+        if (this.alternate) {
+            this.currentScale = this.dominant 
+                ? 'DOMINANT_SEVENTH_FLAT_FIVE_DIMINISHED_SCALE' 
+                : 'MINOR_SIXTH_DIMINISHED_SCALE';
+        } else {
+            this.currentScale = this.dominant 
+                ? 'DOMINANT_SEVENTH_DIMINISHED_SCALE' 
+                : 'MAJOR_SIXTH_DIMINISHED_SCALE';
+        }
     }
 };
 
