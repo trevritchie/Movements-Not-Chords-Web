@@ -120,8 +120,19 @@ window.AudioEngine = AudioEngine;
 
 // Initialize the audio engine
 function initAudioEngine() {
+    console.log('Creating new AudioEngine instance');
     const audioEngine = new AudioEngine();
-    audioEngine.initialize();
+    
+    // Make initialization async but don't wait for it
+    audioEngine.initialize()
+        .then(success => {
+            console.log('AudioEngine initialization complete, success:', success);
+        })
+        .catch(err => {
+            console.error('AudioEngine initialization failed:', err);
+        });
+    
+    // Return the engine instance immediately
     return audioEngine;
 }
 

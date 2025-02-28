@@ -1,3 +1,77 @@
+// Add this near the top of your app.js file
+(function() {
+    // Create on-screen console
+    const logDiv = document.createElement('div');
+    logDiv.id = 'on-screen-console';
+    logDiv.style.cssText = `
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-height: 30vh;
+        overflow-y: auto;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        font-family: monospace;
+        padding: 10px;
+        font-size: 12px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column-reverse;
+    `;
+    document.body.appendChild(logDiv);
+    
+    // Override console methods
+    const originalConsole = {
+        log: console.log,
+        error: console.error,
+        warn: console.warn,
+        info: console.info
+    };
+    
+    function addLogToScreen(type, args) {
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-${type}`;
+        logEntry.style.color = {
+            log: 'white',
+            error: '#ff4444',
+            warn: '#ffbb33',
+            info: '#33b5e5'
+        }[type];
+        
+        const timestamp = new Date().toLocaleTimeString();
+        logEntry.textContent = `[${timestamp}] ${Array.from(args).join(' ')}`;
+        
+        logDiv.insertBefore(logEntry, logDiv.firstChild);
+        
+        // Keep only the last 50 entries
+        while (logDiv.children.length > 50) {
+            logDiv.removeChild(logDiv.lastChild);
+        }
+    }
+    
+    // Override console methods
+    console.log = function() {
+        originalConsole.log.apply(console, arguments);
+        addLogToScreen('log', arguments);
+    };
+    
+    console.error = function() {
+        originalConsole.error.apply(console, arguments);
+        addLogToScreen('error', arguments);
+    };
+    
+    console.warn = function() {
+        originalConsole.warn.apply(console, arguments);
+        addLogToScreen('warn', arguments);
+    };
+    
+    console.info = function() {
+        originalConsole.info.apply(console, arguments);
+        addLogToScreen('info', arguments);
+    };
+})();
+
 // Main application logic
 document.addEventListener('DOMContentLoaded', () => {
     // References to DOM elements
@@ -96,18 +170,36 @@ document.addEventListener('DOMContentLoaded', () => {
         // This is crucial for iOS devices
         Tone.start().then(() => {
             console.log('Audio context started successfully');
+            
+            // Make sure we're actually getting back a valid audio engine
             audioEngine = initAudioEngine();
             console.log('Audio engine initialized:', audioEngine);
             
-            // Play a test sound immediately to confirm audio works
-            setTimeout(() => {
-                if (audioEngine && audioEngine.initialized) {
-                    console.log('Playing test tone to confirm audio');
-                    audioEngine.synths[0].triggerAttackRelease("C4", "8n");
-                } else {
-                    console.error('Audio engine not initialized properly');
-                }
-            }, 1000);
+            if (!audioEngine || !audioEngine.initialized) {
+                console.error('Audio engine initialization failed, creating fallback');
+                
+                // Create a simple fallback audio function
+                audioEngine = {
+                    initialized: true,
+                    synths: [new Tone.Synth().toDestination()],
+                    playChord: function(notes) {
+                        console.log('Playing chord with fallback:', notes);
+                        if (notes && notes.length > 0) {
+                            // Convert MIDI note to frequency
+                            const freq = Tone.Frequency(notes[0], "midi").toFrequency();
+                            this.synths[0].triggerAttackRelease(freq, "8n");
+                        }
+                    },
+                    playBassNote: function(note) {
+                        console.log('Playing bass with fallback:', note);
+                        // We already played a note in playChord, so we'll skip this for simplicity
+                    }
+                };
+            }
+            
+            // Verify audio works immediately
+            audioEngine.synths[0].triggerAttackRelease("C4", "8n");
+            console.log('Test tone sent after initialization');
             
             // Start listening to device motion
             motionSensor = startAccelerometerListener((data) => {
@@ -154,11 +246,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleButtonPress(buttonId) {
-        console.log('Button pressed:', buttonId);
+        console.log('Button pressed:', buttonId, 'Function:', document.querySelector(`[data-button-id="${buttonId}"]`)?.dataset.function);
         
         // Map the new button IDs to functions based on position
         // Bottom row contains chord numerals 1-4
         if (buttonId >= 12 && buttonId <= 15) {
+            console.log('Pressing bottom row chord numeral button');
             // Convert from button ID to chord numeral (15 → 1, 14 → 2, etc.)
             const numeralIndex = 15 - buttonId;
             ChordTheory.chordNumeral = numeralIndex + 1;
@@ -166,38 +259,52 @@ document.addEventListener('DOMContentLoaded', () => {
         } 
         // Third row contains chord numerals 5-8
         else if (buttonId >= 8 && buttonId <= 11) {
+            console.log('Pressing third row chord numeral button');
             // Convert from button ID to chord numeral (11 → 5, 10 → 6, etc.)
             const numeralIndex = 11 - buttonId + 4;
             ChordTheory.chordNumeral = numeralIndex + 1;
             ChordTheory.offChordLock = false;
         }
         // Other functional buttons
-        else if (buttonId === 7) { // Off button
-            ChordTheory.offChordLock = !ChordTheory.offChordLock;
-        } 
-        else if (buttonId === 6) { // Dom button
-            ChordTheory.dominant = !ChordTheory.dominant;
-        }
-        else if (buttonId === 5) { // Alt button
-            ChordTheory.setAlternate(!ChordTheory.alternate);
+        else {
+            console.log('Pressing function button');
+            // Just log which function button was pressed
+            const functionName = document.querySelector(`[data-button-id="${buttonId}"]`)?.dataset.function;
+            console.log('Function button pressed:', functionName);
         }
         
-        // Generate a proper chord based on the current settings
-        if (!audioEngine || !audioEngine.initialized) {
-            console.error('Audio engine not ready!');
-            return;
+        // Check audio engine status
+        console.log('Audio engine status:', 
+            audioEngine ? 'exists' : 'missing', 
+            audioEngine?.initialized ? 'initialized' : 'not initialized');
+        
+        // Try to play sound directly with Tone.js
+        try {
+            console.log('Attempting to play direct test tone');
+            const synth = new Tone.Synth().toDestination();
+            synth.triggerAttackRelease("C4", "8n");
+            console.log('Direct test tone command sent');
+        } catch (e) {
+            console.error('Failed to play direct test tone:', e);
         }
         
-        // Play a simple C major chord for testing
-        const testChord = buttonId % 2 === 0 ? 
-            [60, 64, 67] :  // C major 
-            [60, 63, 67];   // C minor
-        
-        console.log('Playing test chord:', testChord);
-        audioEngine.playChord(testChord);
-        
-        // Play bass note
-        audioEngine.playBassNote(48); // C2
+        // Try to use the audio engine
+        try {
+            if (audioEngine && audioEngine.initialized) {
+                // Play a simple C major chord for testing
+                const testChord = [60, 64, 67];  // C major
+                
+                console.log('Playing test chord via audio engine:', testChord);
+                audioEngine.playChord(testChord);
+                
+                // Play bass note
+                audioEngine.playBassNote(48); // C2
+            } else {
+                console.error('Audio engine not ready for playback!');
+            }
+        } catch (e) {
+            console.error('Error playing through audio engine:', e);
+        }
         
         // Update the chord name display
         updateChordDisplay();
@@ -259,4 +366,37 @@ document.addEventListener('DOMContentLoaded', () => {
             Tone.context.resume();
         }
     }, {once: true});
+
+    // Simple test to verify audio works at all
+    document.body.addEventListener('click', function() {
+        console.log('Body clicked, trying to play sound');
+        
+        // Create a completely new synth and audio context each time
+        Tone.context.close(); // Close any existing context
+        Tone.context = new AudioContext(); // Create fresh context
+        
+        const newSynth = new Tone.Synth().toDestination();
+        newSynth.triggerAttackRelease("C4", "8n");
+        
+        // Save this synth to a global variable for debugging
+        window.debugSynth = newSynth;
+        
+        // Also show audio context state
+        console.log('Audio context state:', Tone.context.state);
+    });
+
+    // Add this near the top of your app.js file (after creating a free account)
+    // Using a CDN approach for simplicity
+    const script = document.createElement('script');
+    script.src = 'https://cdn.logrocket.io/LogRocket.min.js';
+    script.crossOrigin = 'anonymous';
+    script.onload = function() {
+        window.LogRocket && window.LogRocket.init('your-app/mnc');
+        
+        // Add console capture
+        LogRocket.getSessionURL(sessionURL => {
+            console.log('LogRocket session:', sessionURL);
+        });
+    };
+    document.head.appendChild(script);
 }); 
