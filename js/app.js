@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const MOTION_THROTTLE = 300; // Only process motion every 300ms
     let motionSoundsEnabled = false; // Start with motion sounds disabled
     
+    // Add this variable to store the current chord
+    let currentCalculatedChord = [];
+    
     // Initialize components
     createTouchGrid();
     
@@ -156,27 +159,31 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Start listening to device motion
             motionSensor = startAccelerometerListener((data) => {
-                // Create a better formatted motion display
+                // Only show the highlighted values (blue boxes)
                 document.getElementById('motion-display').innerHTML = `
                     <div class="motion-value highlight">Roll: ${data.roll.toFixed(1)}°</div>
                     <div class="motion-value highlight">Pitch: ${data.pitch.toFixed(1)}°</div>
-                    <div class="motion-value">NormRoll: ${data.normalizedRoll?.toFixed(2) || 'N/A'}</div>
-                    <div class="motion-value">NormPitch: ${data.normalizedPitch?.toFixed(2) || 'N/A'}</div>
                 `;
                 
-                // Also display values as a status message at the top
+                // Show current chord numeral at the top instead of motion values
                 document.querySelector('header h1').textContent = 
-                    `Roll: ${data.roll.toFixed(1)}° | Pitch: ${data.pitch.toFixed(1)}°`;
+                    `Current Chord: ${ChordTheory.getCurrentChordName()}`;
                 
                 // Process motion for sound generation
                 processMotionData(data);
                 
                 // Update the visual indicator
                 updateOrientationVisual(data.roll, data.pitch);
+                
+                // Display the current voicing type at the bottom
+                updateVoicingTypeDisplay(data);
             });
             
             // Update the chord name display
             updateChordDisplay();
+            
+            // Add motion sounds toggle button
+            addMotionSoundsButton();
         }).catch(error => {
             console.error('Failed to start audio context:', error);
         });
@@ -256,41 +263,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function processMotionData(data) {
-        // Skip if motion sounds are disabled
-        if (!motionSoundsEnabled) {
-            return;
-        }
-        
-        // Only process motion data periodically to prevent constant triggering
+        // Only process motion at certain intervals to avoid overwhelming the system
         const now = Date.now();
-        if (now - lastMotionProcessTime < MOTION_THROTTLE) {
-            return; // Skip processing if too soon since last update
-        }
+        if (now - lastMotionProcessTime < MOTION_THROTTLE) return;
         lastMotionProcessTime = now;
         
-        console.log('Processing motion data:', data);
-        // Only process if audio engine is ready
-        if (!audioEngine || !audioEngine.initialized) {
-            console.log('Audio engine not ready');
-            return;
-        }
+        // Calculate the chord based on current motion - but don't play it
+        currentCalculatedChord = ChordTheory.processMotionData(data);
         
-        // Get notes based on motion data
-        const notes = ChordTheory.processMotionData(data);
-        console.log('Notes to play:', notes);
-        
-        // Release previous notes before playing new ones
-        audioEngine.stopChord();
-        audioEngine.stopBassNote();
-        
-        // Play the notes
-        if (notes.length > 0) {
-            audioEngine.playChord(notes);
-            
-            // Also play a bass note for foundation
-            const bassNote = notes[0] - 24; // Two octaves lower
-            audioEngine.playBassNote(bassNote);
-        }
+        // Optionally update visual representation of the chord
+        updateChordVisualizer(currentCalculatedChord);
     }
     
     function updateChordDisplay() {
@@ -320,17 +302,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add this function
     function toggleMotionSounds() {
         motionSoundsEnabled = !motionSoundsEnabled;
+        document.getElementById('motion-sounds-button').textContent = 
+            motionSoundsEnabled ? 'Disable Motion Sounds' : 'Enable Motion Sounds';
         
-        // Stop any currently playing sounds
-        if (!motionSoundsEnabled && audioEngine) {
-            audioEngine.stopChord();
-            audioEngine.stopBassNote();
+        // If enabling, immediately play based on current position
+        if (motionSoundsEnabled && motionSensor) {
+            processMotionData(motionSensor.getLatestData());
+        } else {
+            // If disabling, stop all sounds
+            if (audioEngine) {
+                audioEngine.stopChord();
+                audioEngine.stopBassNote();
+            }
         }
-        
-        // Show status to user
-        alert(motionSoundsEnabled ? 
-            "Motion sounds enabled" : 
-            "Motion sounds disabled (only buttons will make sound)");
     }
 
     // Add a double-tap handler to the motion display area
@@ -458,21 +442,150 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // Get the current chord based on theory
-        const notes = ChordTheory.getScaleDegreeNotes(ChordTheory.chordNumeral);
-        
         // Stop any currently playing sounds
         audioEngine.stopChord();
         audioEngine.stopBassNote();
         
-        // Play the chord if we have notes
-        if (notes.length > 0) {
-            console.log('Playing chord:', notes);
-            audioEngine.playChord(notes);
+        // If we have a calculated chord, play it
+        if (currentCalculatedChord && currentCalculatedChord.length > 0) {
+            console.log('Playing chord:', currentCalculatedChord);
+            audioEngine.playChord(currentCalculatedChord);
             
-            // Also play bass note (root of the chord)
-            const bassNote = notes[0] - 12; // One octave lower
+            // Also play bass note
+            const bassNote = Math.min(...currentCalculatedChord) - 12;
             audioEngine.playBassNote(bassNote);
+            
+            // Update the chord name display
+            updateChordDisplay();
+        }
+    }
+
+    // In your accelerometer handler or update loop
+    function handleMotionUpdate(motionData) {
+        // Update UI, etc.
+        
+        // If audio is playing, update the chord based on current motion
+        if (audioEngine && audioEngine.isPlaying()) {
+            playCurrentChord();
+        }
+    }
+
+    // Add a button to the UI to toggle motion sounds
+    function addMotionSoundsButton() {
+        const button = document.createElement('button');
+        button.id = 'motion-sounds-button';
+        button.textContent = 'Enable Motion Sounds';
+        button.classList.add('control-button');
+        button.addEventListener('click', toggleMotionSounds);
+        
+        // Add to controls section
+        const controlsSection = document.querySelector('.controls') || mainInterface;
+        controlsSection.appendChild(button);
+    }
+
+    // Add this function to determine and display the current voicing type
+    function updateVoicingTypeDisplay(data) {
+        // Calculate contraryPitch from data (similar to processMotionData)
+        const roll = data.normalizedRoll;
+        const contraryPitch = ChordTheory.scaleRoot + Math.floor((roll + 1) * 36);
+        
+        // Determine voicing type based on the distance from pivot
+        let voicingType = "Unison";
+        
+        // Only calculate if roll is significant
+        if (Math.abs(roll) > 0.05) {
+            const distance = ChordTheory.pivotPitch - contraryPitch;
+            
+            if (distance <= 0) {
+                voicingType = "Unison";
+            } else if (distance <= 3) {
+                voicingType = "Third";
+            } else if (distance <= 5) {
+                voicingType = "Triad";
+            } else if (distance <= 8) {
+                voicingType = "Shell";
+            } else if (distance <= 12) {
+                voicingType = "Octave";
+            } else if (distance <= 18) {
+                voicingType = "Drop 2";
+            } else if (distance <= 22) {
+                voicingType = "Drop 3";
+            } else if (distance <= 25) {
+                voicingType = "Drop 2&4";
+            } else {
+                voicingType = "Double Octave";
+            }
+        }
+        
+        // Display the voicing type at the bottom
+        const voicingDisplay = document.getElementById('voicing-display') || createVoicingDisplay();
+        voicingDisplay.textContent = `Voicing: ${voicingType}`;
+    }
+
+    // Create the voicing display element
+    function createVoicingDisplay() {
+        const display = document.createElement('div');
+        display.id = 'voicing-display';
+        display.style.position = 'fixed';
+        display.style.bottom = '20px';
+        display.style.left = '0';
+        display.style.width = '100%';
+        display.style.textAlign = 'center';
+        display.style.fontSize = '1.5rem';
+        display.style.fontWeight = 'bold';
+        display.style.color = 'white';
+        display.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        display.style.padding = '10px';
+        document.body.appendChild(display);
+        return display;
+    }
+
+    // Add a function to update the chord visualizer
+    function updateChordVisualizer(chord) {
+        // If we have a chord visualizer element, update it
+        const visualizer = document.getElementById('chord-visualizer');
+        if (visualizer && chord && chord.length > 0) {
+            // Clear existing visualizer
+            visualizer.innerHTML = '';
+            
+            // Create a piano-style visualization
+            const maxNote = Math.max(...chord);
+            const minNote = Math.min(...chord);
+            const range = maxNote - minNote + 24; // Add some padding
+            
+            // Create the visualization container
+            const container = document.createElement('div');
+            container.style.display = 'flex';
+            container.style.height = '100px';
+            container.style.width = '100%';
+            container.style.alignItems = 'center';
+            container.style.justifyContent = 'center';
+            
+            // Create a representation for each note
+            for (let i = minNote - 12; i <= maxNote + 12; i++) {
+                const noteElement = document.createElement('div');
+                noteElement.style.width = '10px';
+                noteElement.style.marginRight = '2px';
+                
+                // Highlight notes in the chord
+                if (chord.includes(i)) {
+                    noteElement.style.height = '80px';
+                    noteElement.style.backgroundColor = '#4CAF50';
+                } else {
+                    noteElement.style.height = '40px';
+                    noteElement.style.backgroundColor = '#ccc';
+                }
+                
+                // White keys are wider
+                const noteNum = i % 12;
+                if ([0, 2, 4, 5, 7, 9, 11].includes(noteNum)) {
+                    noteElement.style.width = '14px';
+                }
+                
+                container.appendChild(noteElement);
+            }
+            
+            visualizer.appendChild(container);
         }
     }
 
