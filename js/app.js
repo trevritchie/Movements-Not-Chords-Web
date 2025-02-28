@@ -61,21 +61,31 @@ document.addEventListener('DOMContentLoaded', () => {
         permissionScreen.classList.remove('active');
         mainInterface.classList.add('active');
         
-        // Initialize the audio engine
-        audioEngine = initAudioEngine();
-        
-        // Start listening to device motion
-        motionSensor = startAccelerometerListener((data) => {
-            // Update UI with motion data
-            rollValue.textContent = data.roll.toFixed(1);
-            pitchValue.textContent = data.pitch.toFixed(1);
+        // Initialize the audio engine with explicit user interaction
+        // This is crucial for iOS devices
+        Tone.start().then(() => {
+            console.log('Audio context started successfully');
+            audioEngine = initAudioEngine();
             
-            // Process motion for sound generation
-            processMotionData(data);
+            // Play a quick test tone to verify audio works
+            const testSynth = new Tone.Synth().toDestination();
+            testSynth.triggerAttackRelease("C4", "8n");
+            
+            // Start listening to device motion
+            motionSensor = startAccelerometerListener((data) => {
+                // Update UI with motion data
+                rollValue.textContent = data.roll.toFixed(1);
+                pitchValue.textContent = data.pitch.toFixed(1);
+                
+                // Process motion for sound generation
+                processMotionData(data);
+            });
+            
+            // Update the chord name display
+            updateChordDisplay();
+        }).catch(error => {
+            console.error('Failed to start audio context:', error);
         });
-        
-        // Update the chord name display
-        updateChordDisplay();
     }
     
     // Handle button touch events
@@ -130,11 +140,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function processMotionData(data) {
+        console.log('Motion data:', data);
         // Only process if audio engine is ready
-        if (!audioEngine || !audioEngine.initialized) return;
+        if (!audioEngine || !audioEngine.initialized) {
+            console.log('Audio engine not ready');
+            return;
+        }
         
         // Get notes based on motion data
         const notes = ChordTheory.processMotionData(data);
+        console.log('Notes to play:', notes);
         
         // Play the notes
         if (notes.length > 0) {
@@ -164,4 +179,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }, 100);
     }
+    
+    // Required for iOS to allow audio
+    document.body.addEventListener('touchstart', function() {
+        if (Tone.context.state !== 'running') {
+            Tone.context.resume();
+        }
+    }, {once: true});
 }); 

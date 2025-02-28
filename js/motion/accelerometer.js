@@ -115,13 +115,36 @@ function startAccelerometerListener(callback) {
     
     motionSensor.requestPermission().then(granted => {
         if (granted) {
+            console.log('Motion permission granted, starting sensor');
             motionSensor.start(callback);
+            
+            // Remove simulation code
+            // Instead add a fallback for desktop testing
+            if (!window.DeviceMotionEvent) {
+                console.warn('Device motion not supported, using simulation');
+                // Only use simulation if real sensors aren't available
+                simulateMotionData(callback);
+            }
         } else {
             console.error('Motion permission denied');
+            alert('This app requires motion sensor access to work properly.');
         }
     });
     
     return motionSensor;
+}
+
+// Add this function for desktop testing
+function simulateMotionData(callback) {
+    console.log('Using simulated motion data');
+    setInterval(() => {
+        callback({
+            roll: Math.random() * 90 - 45,  // -45 to 45
+            pitch: Math.random() * 90 - 45,  // -45 to 45
+            normalizedRoll: Math.random() * 2 - 1, // -1 to 1
+            normalizedPitch: Math.random() * 2 - 1 // -1 to 1
+        });
+    }, 100);
 }
 
 // Export as global if not using modules

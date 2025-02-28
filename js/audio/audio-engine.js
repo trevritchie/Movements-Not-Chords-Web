@@ -11,39 +11,54 @@ class AudioEngine {
     async initialize() {
         if (this.initialized) return;
         
-        // Start audio context
-        await Tone.start();
-        Tone.Transport.start();
-        
-        // Create synths for polyphony (4 voices)
-        for (let i = 0; i < 4; i++) {
-            const synth = new Tone.PolySynth(Tone.Synth).toDestination();
-            synth.set({
-                envelope: {
-                    attack: 0.01,
-                    decay: 0.3,
-                    sustain: 0.4,
-                    release: 0.5
-                }
-            });
-            this.synths.push(synth);
-        }
-        
-        // Create bass synth
-        this.bassSynth = new Tone.Synth({
-            oscillator: {
-                type: 'sawtooth'
-            },
-            envelope: {
-                attack: 0.05,
-                decay: 0.2,
-                sustain: 0.8,
-                release: 1.5
+        try {
+            // Start audio context
+            await Tone.start();
+            console.log('Tone.js started successfully');
+            Tone.Transport.start();
+            
+            // Create synths for polyphony (4 voices)
+            for (let i = 0; i < 4; i++) {
+                const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+                synth.volume.value = -10; // Slightly lower volume to avoid distortion
+                synth.set({
+                    oscillator: {
+                        type: 'triangle' // Smoother sound
+                    },
+                    envelope: {
+                        attack: 0.01,
+                        decay: 0.3,
+                        sustain: 0.4,
+                        release: 0.5
+                    }
+                });
+                this.synths.push(synth);
             }
-        }).toDestination();
-        
-        console.log('Audio engine initialized');
-        this.initialized = true;
+            
+            // Create bass synth
+            this.bassSynth = new Tone.Synth({
+                oscillator: {
+                    type: 'sawtooth'
+                },
+                envelope: {
+                    attack: 0.05,
+                    decay: 0.2,
+                    sustain: 0.8,
+                    release: 1.5
+                }
+            }).toDestination();
+            this.bassSynth.volume.value = -8;
+            
+            // Play a test note to verify audio works
+            this.synths[0].triggerAttackRelease("C4", "8n");
+            
+            console.log('Audio engine initialized successfully');
+            this.initialized = true;
+            return true;
+        } catch (error) {
+            console.error('Failed to initialize audio engine:', error);
+            return false;
+        }
     }
     
     playChord(notes, duration = '4n') {
