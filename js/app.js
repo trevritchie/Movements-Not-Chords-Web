@@ -24,16 +24,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Define button labels/functions in reverse order (control buttons at top, Roman numerals at bottom)
         const buttonConfig = [
             // Top row - Control buttons (previously bottom)
-            { label: "Oct↓", function: "octaveDown" },
-            { label: "Oct↑", function: "octaveUp" },
+            { label: "", function: "" },
+            { label: "Fam↓", function: "octaveUp" },
             { label: "Fam→", function: "familyAcross" },
-            { label: "Fam↓", function: "familyDown" },
+            { label: "Fam↑", function: "familyDown" },
             
             // Second row - More control buttons
-            { label: "Fam↑", function: "familyUp" },
-            { label: "Alt", function: "alternate" },
             { label: "Dom", function: "makeDominant" },
-            { label: "Off", function: "offChord" },
+            { label: "Off", function: "makeOffChord" },
+            { label: "On", function: "makeOnChord" },
+            { label: "Pretty", function: "prettySubstitution" },
             
             // Third row - Upper chord numerals
             { label: "I", function: "tonicOctave" },
