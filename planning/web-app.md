@@ -240,3 +240,106 @@ jobs:
 ### Offline Capabilities
 - Implement service worker for offline access
 - Cache important audio assets and application logic
+
+## 11. Chord Voicing System
+
+A key element of "Movements, Not Chords" is the dynamic chord voicing system, which creates musically coherent chord expansions based on Barry Harris' approach. This section explains the core mechanism of the voicing system.
+
+### Contrary Motion: From Unison to Complex Voicings
+
+The contrary motion algorithm takes physical movement and translates it into harmonically rich chord voicings. As the distance between input pitch and pivot increases, the algorithm creates progressively more complex voicings, with notes expanding outward in contrary motion.
+
+```
+Input Pitch → Distance from Pivot → Chord Width Calculation → Voicing Selection → Note Selection
+```
+
+#### Voicing Progression in C Major Sixth Diminished Scale [C D E F G Ab A B]
+
+Starting with a pivot pitch and moving the input pitch progressively farther away:
+
+1. **Unison (Width 1)**:
+   - When input equals pivot
+   - Result: Single note
+   - C4 (MIDI 60)
+   - *Single pivot pitch*
+
+2. **Third (Width 2)**:
+   - Input pitch slightly below pivot
+   - Result: Two-note voicing
+   - B3 (MIDI 59), D4 (MIDI 62)
+   - *Basic interval with octave spacing*
+
+3. **Triad (Width 3)**:
+   - Input progressively lower
+   - Result: Three-note voicing
+   - A3 (MIDI 57), C4 (MIDI 60), E4 (MIDI 64)
+   - *Major triad voicing*
+
+4. **Shell (Width 4)**:
+   - Input progressively lower
+   - Result: Three-note voicing
+   - G#3 (MIDI 56), B3 (MIDI 59), F4 (MIDI 65)
+   - *Chord shell with essential tones*
+
+5. **Octave Chord (Width 5)**:
+   - Input progressively lower
+   - Result: Four-note voicing (skips 3rd note)
+   - G3 (MIDI 55), C4 (MIDI 60), E4 (MIDI 64), G4 (MIDI 67)
+   - *Four-voice spread voicing spanning an octave*
+
+6. **Drop 2 Voicing (Width 6)**:
+   - Input progressively lower
+   - Result: Four-note voicing (skips notes 2 & 5)
+   - F3 (MIDI 53), B3 (MIDI 59), D4 (MIDI 62), G#4 (MIDI 68)
+   - *Four-voice chord with 2nd voice from top dropped an octave*
+
+7. **Drop 3 Voicing (Width 7)**:
+   - Input progressively lower
+   - Result: Four-note voicing (skips notes 2, 3 & 5)
+   - E3 (MIDI 52), C4 (MIDI 60), G4 (MIDI 67), A4 (MIDI 69)
+   - *Four-voice chord with 3rd voice from top dropped an octave*
+
+8. **Drop 2&4 Voicing (Width 8)**:
+   - Input progressively lower
+   - Result: Four-note voicing (skips notes 2, 4, 5 & 7)
+   - D3 (MIDI 50), G#3 (MIDI 56), F4 (MIDI 65), B4 (MIDI 71)
+   - *Four-voice chord with 2nd and 4th voices dropped*
+
+9. **Double Octave Chord (Width 9)**:
+   - Input furthest below pivot
+   - Result: Four-note voicing (skips notes 2, 3, 5, 7 & 8)
+   - C3 (MIDI 48), A3 (MIDI 57), E4 (MIDI 64), C5 (MIDI 72)
+   - *Four-voice chord spanning exactly two octaves*
+
+### Voicing Logic and Contrary Motion Pattern
+
+The algorithm creates these voicings by:
+1. Calculating chord width based on distance between input and pivot pitches
+2. Starting from the input pitch and moving up in specified intervals
+3. Skipping specific notes based on the desired voicing type
+4. Creating contrary motion where one voice moves down and another up with each expansion
+
+As the chord expands from unison to double octave:
+- The bottom note descends by approximately one scale step each time (60→50→57→56→55→53→52→50→48)
+- The top note generally ascends (60→62→64→65→67→68→69→71→72)
+- The inner voices create musically coherent harmonies
+
+```javascript
+// The core of the voicing system is this skipping logic:
+if ((chordWidth === octaveChord && note === 3) ||
+    (chordWidth === drop2 && (note === 2 || note === 5)) ||
+    (chordWidth === drop3 && (note === 2 || note === 3 || note === 5)) ||
+    (chordWidth === drop2and4 && (note === 2 || note === 4 || note === 5 || note === 7)) ||
+    (chordWidth === doubleOctaveChord && (note === 2 || note === 3 || note === 5 || note === 7 || note === 8))) {
+    continue; // Skip this note in the voicing
+}
+```
+
+This sophisticated system creates musically satisfying voice leading as the chord expands and contracts with physical movement, maintaining the essence of Barry Harris' approach to harmony.
+
+### Implementation Considerations
+
+1. **Optimization**: The voicing calculation is performance-critical and should be optimized for minimal latency
+2. **Calibration**: Different devices may require adjustments to the motion mapping
+3. **Visualization**: Consider visual feedback showing chord expansion/contraction
+4. **Scale Context**: Voicings sound different in different scales/contexts

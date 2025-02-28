@@ -47,7 +47,7 @@ const ChordTheory = {
         return `${chordName} ${scaleType}`;
     },
     
-    // Implement contrary motion - full Python implementation
+    // Implement contrary motion - matching Python implementation exactly
     contraryMotion(contraryPitch) {
         const chord = [];
         const OCTAVE = 12;
@@ -64,9 +64,18 @@ const ChordTheory = {
         const inputPitchClass = (contraryPitch - this.scaleRoot) % OCTAVE;
         const pivotPitchClass = (this.pivotPitch - this.scaleRoot) % OCTAVE;
         
-        // Find scale degrees - directly using indexOf instead of manual search
-        const inputScaleDegree = scale.indexOf(inputPitchClass);
-        const pivotScaleDegree = scale.indexOf(pivotPitchClass);
+        // Find scale degrees - directly from Python implementation
+        let inputScaleDegree = -1;
+        let pivotScaleDegree = -1;
+        
+        for (let i = 0; i < scale.length; i++) {
+            if (scale[i] === inputPitchClass) {
+                inputScaleDegree = i;
+            }
+            if (scale[i] === pivotPitchClass) {
+                pivotScaleDegree = i;
+            }
+        }
         
         // If either pitch is not in scale, return empty chord
         if (inputScaleDegree === -1 || pivotScaleDegree === -1) {
@@ -74,7 +83,9 @@ const ChordTheory = {
         }
         
         const inputOctave = Math.floor(contraryPitch / OCTAVE);
+        let currentOctave = inputOctave;
         const octaveSpread = Math.floor(Math.abs(contraryPitch - this.pivotPitch) / OCTAVE);
+        let previousPitch = contraryPitch;
         
         // How many notes should be in the chord?
         let chordWidth = 1 + ((pivotScaleDegree - inputScaleDegree) % 8) + (8 * octaveSpread);
@@ -92,8 +103,6 @@ const ChordTheory = {
         // Fill in the chord list by taking a note, skipping a note, taking a note...
         // until the desired chord width is achieved
         let contrary = 0; // Used for iteration to build the polyphony
-        let currentOctave = inputOctave;
-        let previousPitch = contraryPitch;
         
         for (let note = 1; note <= chordWidth; note++) {
             let currentPitch = scale[(inputScaleDegree + contrary) % 8] + 
@@ -125,73 +134,60 @@ const ChordTheory = {
         return chord;
     },
     
-    // Implement oblique motion
-    obliqueMotion(normalizedPitch) {
-        // In Barry Harris theory, oblique motion keeps some voices static while others move
-        if (normalizedPitch === undefined) {
-            // If no pitch is provided, set the pivot pitch
-            this.pivotPitch = normalizedPitch;
-            return [];
+    // Implement oblique motion - matching Python implementation
+    obliqueMotion(inputPitch) {
+        // In Python implementation, oblique motion simply sets the pivot pitch
+        // The actual oblique effect happens in the way the accelerometer data is handled
+        if (inputPitch !== undefined) {
+            this.pivotPitch = inputPitch;
         }
-        
-        const chord = [];
-        const intensity = Math.abs(normalizedPitch);
-        
-        // Get basic chord from current numeral
-        const baseNotes = this.getScaleDegreeNotes(this.chordNumeral);
-        if (baseNotes.length === 0) return [];
-        
-        // Keep the outer voices (bass and soprano) static
-        chord.push(baseNotes[0]); // Bass stays
-        
-        // Middle voices move based on pitch intensity
-        const middleVoiceCount = baseNotes.length - 2;
-        if (middleVoiceCount > 0) {
-            const pitchDirection = Math.sign(normalizedPitch);
-            const maxMotion = 7; // Max movement of a fifth
-            
-            for (let i = 1; i < baseNotes.length - 1; i++) {
-                // Calculate oblique motion amount for each middle voice
-                // Distribute motion across middle voices
-                const voiceRatio = i / (middleVoiceCount + 1);
-                const voiceMotion = pitchDirection * Math.round(intensity * maxMotion * voiceRatio);
-                chord.push(baseNotes[i] + voiceMotion);
-            }
-        }
-        
-        // Soprano stays
-        chord.push(baseNotes[baseNotes.length - 1]);
-        
-        return chord;
+        return [];
     },
     
-    // Process motion data into actual notes to play
+    // Process motion data into actual notes to play - matching Python implementation logic
     processMotionData(data) {
         // Skip if off
         if (this.offChordLock) {
             return [];
         }
         
-        // Use both contrary and oblique motion, but weight their influence
-        // based on the strength of each motion
-        const contraryInfluence = Math.abs(data.normalizedRoll);
-        const obliqueInfluence = Math.abs(data.normalizedPitch);
+        // In Python implementation, pitch (y) controls oblique motion
+        // and roll (x) controls contrary motion
+        const pitchMotion = data.normalizedPitch;
+        const rollMotion = data.normalizedRoll;
         
-        // Get base voicings
-        const contraryChord = this.contraryMotion(data.normalizedRoll);
-        const obliqueChord = this.obliqueMotion(data.normalizedPitch);
+        // Initialize result chord
+        let resultChord = [];
         
-        // If no movement, return the basic chord
-        if (contraryInfluence < 0.05 && obliqueInfluence < 0.05) {
-            return this.getScaleDegreeNotes(this.chordNumeral);
+        // If both motions are very small, return a basic chord
+        if (Math.abs(rollMotion) < 0.05 && Math.abs(pitchMotion) < 0.05) {
+            // Use the current scale to build a basic chord (like in Python)
+            const scale = this.getCurrentScale();
+            // Build a basic triad from the scale
+            for (let i = 0; i < 7; i += 2) {
+                if (i < scale.length) {
+                    resultChord.push(this.scaleRoot + scale[i] + (5 * 12)); // 5th octave
+                }
+            }
+            return resultChord;
         }
         
-        // Choose which motion dominates based on strength
-        if (contraryInfluence > obliqueInfluence) {
-            return contraryChord;
-        } else {
-            return obliqueChord;
+        // Map roll (x) to contrary motion - this mirrors Python's mapAccelerometerToPitch
+        if (Math.abs(rollMotion) > 0.05) {
+            const contraryPitch = this.scaleRoot + Math.floor((rollMotion + 1) * 36);
+            resultChord = this.contraryMotion(contraryPitch);
         }
+        
+        // Map pitch (y) to oblique motion - matching Python's handleTouchInput logic
+        if (Math.abs(pitchMotion) > 0.05) {
+            const obliquePitch = this.scaleRoot + Math.floor((pitchMotion + 1) * 24) + 60;
+            this.obliqueMotion(obliquePitch);
+            
+            // In Python, obliqueMotion just sets pivotPitch
+            // The actual oblique motion effect is achieved when the next contrary motion is calculated
+        }
+        
+        return resultChord;
     },
     
     // Reset family transformations
