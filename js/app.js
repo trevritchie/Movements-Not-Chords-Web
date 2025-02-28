@@ -202,6 +202,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleButtonPress(buttonId) {
         console.log('Button pressed:', buttonId);
         
+        // Get the function name from the button
+        const button = document.querySelector(`[data-button-id="${buttonId}"]`);
+        const functionName = button?.dataset.function;
+        
+        if (!functionName || functionName === '') {
+            console.log('No function assigned to this button');
+            return;
+        }
+        
         // Map the new button IDs to functions based on position
         // Bottom row contains chord numerals 1-4
         if (buttonId >= 12 && buttonId <= 15) {
@@ -209,6 +218,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const numeralIndex = 15 - buttonId;
             ChordTheory.chordNumeral = numeralIndex + 1;
             ChordTheory.offChordLock = false;
+            
+            // Play the chord
+            playCurrentChord();
+            
+            // Update display
+            updateChordDisplay();
         } 
         // Third row contains chord numerals 5-8
         else if (buttonId >= 8 && buttonId <= 11) {
@@ -216,46 +231,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const numeralIndex = 11 - buttonId + 4;
             ChordTheory.chordNumeral = numeralIndex + 1;
             ChordTheory.offChordLock = false;
+            
+            // Play the chord
+            playCurrentChord();
+            
+            // Update display
+            updateChordDisplay();
         }
-        // Special buttons
-        else if (buttonId === 7) { // "Pretty" button
-            // Toggle motion sounds
-            toggleMotionSounds();
+        // Special function buttons
+        else {
+            handleSpecialButtonPress(buttonId, functionName);
         }
-        
-        // Play a simple chord based on button position
-        const notes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
-        const noteIndex = buttonId % 8;
-        const note = notes[noteIndex];
-        
-        // Stop any currently playing button sounds first
-        if (window.currentButtonSynth) {
-            window.currentButtonSynth.triggerRelease();
-        }
-        
-        // Create a new synth with better settings
-        window.currentButtonSynth = new Tone.Synth({
-            oscillator: {
-                type: 'triangle'
-            },
-            envelope: {
-                attack: 0.01,
-                decay: 0.2,
-                sustain: 0.3,
-                release: 1.0
-            }
-        }).toDestination();
-        
-        console.log('Playing button note:', note);
-        window.currentButtonSynth.triggerAttackRelease(note, "8n");
-        
-        // Update the chord name display
-        updateChordDisplay();
     }
     
     function handleButtonReleaseAction(buttonId) {
-        console.log('Button released:', buttonId);
-        // For now, we'll keep sounds playing when buttons are released
+        console.log('Button released action:', buttonId);
+        
+        // Release the button sound
+        if (window.currentButtonSynth) {
+            window.currentButtonSynth.triggerRelease();
+        }
     }
     
     function processMotionData(data) {
@@ -412,4 +407,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Call this after creating the orientation visual
     addResetButton();
+
+    // Handle button presses for special functions
+    function handleSpecialButtonPress(buttonId, functionName) {
+        console.log('Special button pressed:', functionName);
+        
+        switch (functionName) {
+            case 'makeDominant':
+                ChordTheory.makeDominant();
+                break;
+            case 'makeOffChord':
+                ChordTheory.offChordLock = true;
+                break;
+            case 'makeOnChord':
+                ChordTheory.offChordLock = false;
+                break;
+            case 'prettySubstitution':
+                ChordTheory.usePrettySubstitution();
+                break;
+            case 'familyUp':
+                ChordTheory.familyUp();
+                break;
+            case 'familyDown':
+                ChordTheory.familyDown();
+                break;
+            case 'familyAcross':
+                ChordTheory.familyAcross();
+                break;
+            case 'octaveUp':
+                ChordTheory.octaveUp();
+                break;
+            case 'octaveDown':
+                ChordTheory.octaveDown();
+                break;
+        }
+        
+        // Update the chord display
+        updateChordDisplay();
+        
+        // Play the current chord to hear the change
+        playCurrentChord();
+    }
+
+    // Function to play the current chord
+    function playCurrentChord() {
+        if (!audioEngine || !audioEngine.initialized) {
+            console.error('Audio engine not ready for playback!');
+            return;
+        }
+        
+        // Get the current chord based on theory
+        const notes = ChordTheory.getScaleDegreeNotes(ChordTheory.chordNumeral);
+        
+        // Stop any currently playing sounds
+        audioEngine.stopChord();
+        audioEngine.stopBassNote();
+        
+        // Play the chord if we have notes
+        if (notes.length > 0) {
+            console.log('Playing chord:', notes);
+            audioEngine.playChord(notes);
+            
+            // Also play bass note (root of the chord)
+            const bassNote = notes[0] - 12; // One octave lower
+            audioEngine.playBassNote(bassNote);
+        }
+    }
 }); 

@@ -35,22 +35,6 @@ const Scales = {
         
         return scale.map(interval => rootMidi + interval);
     },
-    
-    // Get a chord from a scale
-    getChord: function(scaleName, rootMidi, chordType) {
-        // This is a simplified version - we'll implement the full chord logic later
-        const scale = this.getScale(scaleName, rootMidi);
-        
-        // Basic chord types
-        switch (chordType) {
-            case 'triad':
-                return [scale[0], scale[2], scale[4]];
-            case 'seventh':
-                return [scale[0], scale[2], scale[4], scale[6]];
-            default:
-                return scale;
-        }
-    }
 };
 
 // Export as global if not using modules
