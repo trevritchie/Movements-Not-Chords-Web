@@ -118,21 +118,38 @@ class AudioEngine {
 // Export as global if not using modules
 window.AudioEngine = AudioEngine;
 
-// Initialize the audio engine
+// Initialize the audio engine - make this simpler and synchronous
 function initAudioEngine() {
     console.log('Creating new AudioEngine instance');
     const audioEngine = new AudioEngine();
     
-    // Make initialization async but don't wait for it
-    audioEngine.initialize()
-        .then(success => {
-            console.log('AudioEngine initialization complete, success:', success);
-        })
-        .catch(err => {
-            console.error('AudioEngine initialization failed:', err);
-        });
+    try {
+        // Start synchronously
+        console.log('Starting Tone.js context');
+        Tone.start();
+        Tone.Transport.start();
+        
+        // Create synths synchronously
+        for (let i = 0; i < 4; i++) {
+            const synth = new Tone.Synth().toDestination();
+            synth.volume.value = -10;
+            audioEngine.synths.push(synth);
+        }
+        
+        // Create bass synth
+        audioEngine.bassSynth = new Tone.Synth().toDestination();
+        audioEngine.bassSynth.volume.value = -8;
+        
+        // Mark as initialized
+        audioEngine.initialized = true;
+        console.log('Audio engine initialized synchronously');
+        
+        // Play test tone
+        audioEngine.synths[0].triggerAttackRelease("C4", "8n");
+    } catch (error) {
+        console.error('Failed to initialize audio engine:', error);
+    }
     
-    // Return the engine instance immediately
     return audioEngine;
 }
 
