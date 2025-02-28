@@ -109,43 +109,69 @@ class MotionSensor {
 // Export as global if not using modules
 window.MotionSensor = MotionSensor;
 
-// Helper function to start the accelerometer with a callback
+// Device motion handler implementation
 function startAccelerometerListener(callback) {
-    const motionSensor = new MotionSensor();
+    // Check if DeviceOrientation is available
+    if (!window.DeviceOrientationEvent) {
+        console.error('DeviceOrientation not supported by your browser');
+        return null;
+    }
     
-    motionSensor.requestPermission().then(granted => {
-        if (granted) {
-            console.log('Motion permission granted, starting sensor');
-            motionSensor.start(callback);
-            
-            // Remove simulation code
-            // Instead add a fallback for desktop testing
-            if (!window.DeviceMotionEvent) {
-                console.warn('Device motion not supported, using simulation');
-                // Only use simulation if real sensors aren't available
-                simulateMotionData(callback);
-            }
-        } else {
-            console.error('Motion permission denied');
-            alert('This app requires motion sensor access to work properly.');
+    console.log('Setting up real device orientation listener');
+    
+    // Create an object to track motion data
+    const motionData = {
+        roll: 0,        // Rotation around X (gamma)
+        pitch: 0,       // Rotation around Y (beta)
+        // Normalized values will be added when calculating
+    };
+    
+    // Last update timestamp for throttling
+    let lastUpdateTime = 0;
+    const updateInterval = 50; // milliseconds
+    
+    // Listen for orientation changes
+    window.addEventListener('deviceorientation', handleOrientation);
+    
+    function handleOrientation(event) {
+        // Basic throttling to prevent too many updates
+        const now = Date.now();
+        if (now - lastUpdateTime < updateInterval) {
+            return;
         }
-    });
+        lastUpdateTime = now;
+        
+        // Get values from event
+        // iOS and Android have different conventions
+        motionData.roll = event.gamma || 0;  // Left/right tilt: -90 to 90
+        motionData.pitch = event.beta || 0;  // Front/back tilt: -180 to 180
+        
+        // Constrain values to reasonable ranges
+        motionData.roll = Math.min(90, Math.max(-90, motionData.roll));
+        motionData.pitch = Math.min(90, Math.max(-90, motionData.pitch));
+        
+        // Add normalized values (between -1 and 1)
+        motionData.normalizedRoll = motionData.roll / 90;  
+        motionData.normalizedPitch = motionData.pitch / 90;
+        
+        // Log raw values occasionally for debugging
+        if (Math.random() < 0.05) { // Log ~5% of the events to avoid console flood
+            console.log('Raw device orientation:', 
+                        'gamma (roll):', event.gamma, 
+                        'beta (pitch):', event.beta, 
+                        'alpha (yaw):', event.alpha);
+        }
+        
+        // Send data to callback
+        callback(motionData);
+    }
     
-    return motionSensor;
+    // Return a cleanup function
+    return function cleanup() {
+        window.removeEventListener('deviceorientation', handleOrientation);
+        console.log('Device orientation listener removed');
+    };
 }
 
-// Add this function for desktop testing
-function simulateMotionData(callback) {
-    console.log('Using simulated motion data');
-    setInterval(() => {
-        callback({
-            roll: Math.random() * 90 - 45,  // -45 to 45
-            pitch: Math.random() * 90 - 45,  // -45 to 45
-            normalizedRoll: Math.random() * 2 - 1, // -1 to 1
-            normalizedPitch: Math.random() * 2 - 1 // -1 to 1
-        });
-    }, 100);
-}
-
-// Export as global if not using modules
+// Export for global access
 window.startAccelerometerListener = startAccelerometerListener; 

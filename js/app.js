@@ -13,6 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let audioEngine = null;
     let motionSensor = null;
     
+    // Add these variables near the top of your DOMContentLoaded function
+    let lastMotionProcessTime = 0;
+    const MOTION_THROTTLE = 300; // Only process motion every 300ms
+    let motionSoundsEnabled = false; // Start with motion sounds disabled
+    
     // Initialize components
     createTouchGrid();
     
@@ -133,6 +138,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     playBassNote: function(note) {
                         console.log('Playing bass with fallback:', note);
                         // We already played a note in playChord, so we'll skip this for simplicity
+                    },
+                    stopChord: function() {
+                        // Implementation needed
+                    },
+                    stopBassNote: function() {
+                        // Implementation needed
                     }
                 };
             }
@@ -143,20 +154,23 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Start listening to device motion
             motionSensor = startAccelerometerListener((data) => {
-                // Update UI with motion data
-                rollValue.textContent = data.roll.toFixed(1);
-                pitchValue.textContent = data.pitch.toFixed(1);
-                
-                // Add more debug info
+                // Create a better formatted motion display
                 document.getElementById('motion-display').innerHTML = `
-                    <div class="motion-value">Roll: <span id="roll-value">${data.roll.toFixed(1)}</span>°</div>
-                    <div class="motion-value">Pitch: <span id="pitch-value">${data.pitch.toFixed(1)}</span>°</div>
-                    <div class="motion-value">Norm Roll: ${data.normalizedRoll?.toFixed(2) || 'N/A'}</div>
-                    <div class="motion-value">Norm Pitch: ${data.normalizedPitch?.toFixed(2) || 'N/A'}</div>
+                    <div class="motion-value highlight">Roll: ${data.roll.toFixed(1)}°</div>
+                    <div class="motion-value highlight">Pitch: ${data.pitch.toFixed(1)}°</div>
+                    <div class="motion-value">NormRoll: ${data.normalizedRoll?.toFixed(2) || 'N/A'}</div>
+                    <div class="motion-value">NormPitch: ${data.normalizedPitch?.toFixed(2) || 'N/A'}</div>
                 `;
+                
+                // Also display values as a status message at the top
+                document.querySelector('header h1').textContent = 
+                    `Roll: ${data.roll.toFixed(1)}° | Pitch: ${data.pitch.toFixed(1)}°`;
                 
                 // Process motion for sound generation
                 processMotionData(data);
+                
+                // Update the visual indicator
+                updateOrientationVisual(data.roll, data.pitch);
             });
             
             // Update the chord name display
@@ -188,37 +202,55 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleButtonPress(buttonId) {
         console.log('Button pressed:', buttonId);
         
-        // Simple direct test - should work regardless of audio engine
-        try {
-            // Create a new synth each time (not efficient but good for testing)
-            const testSynth = new Tone.Synth({
-                oscillator: {
-                    type: 'triangle'
-                },
-                envelope: {
-                    attack: 0.01,
-                    decay: 0.1,
-                    sustain: 0.5, 
-                    release: 0.5
-                }
-            }).toDestination();
-            
-            // Play a note based on which button was pressed
-            const notes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
-            const note = notes[buttonId % 8];
-            
-            console.log('Playing direct note:', note);
-            testSynth.triggerAttackRelease(note, "4n");
-            
-            // Also explicitly set volume to make sure it's audible
-            testSynth.volume.value = 0; // 0dB = normal volume
-            
-            return; // Skip the rest of the function for now
-        } catch (e) {
-            console.error('Direct tone playback failed:', e);
+        // Map the new button IDs to functions based on position
+        // Bottom row contains chord numerals 1-4
+        if (buttonId >= 12 && buttonId <= 15) {
+            // Convert from button ID to chord numeral (15 → 1, 14 → 2, etc.)
+            const numeralIndex = 15 - buttonId;
+            ChordTheory.chordNumeral = numeralIndex + 1;
+            ChordTheory.offChordLock = false;
+        } 
+        // Third row contains chord numerals 5-8
+        else if (buttonId >= 8 && buttonId <= 11) {
+            // Convert from button ID to chord numeral (11 → 5, 10 → 6, etc.)
+            const numeralIndex = 11 - buttonId + 4;
+            ChordTheory.chordNumeral = numeralIndex + 1;
+            ChordTheory.offChordLock = false;
+        }
+        // Special buttons
+        else if (buttonId === 7) { // "Pretty" button
+            // Toggle motion sounds
+            toggleMotionSounds();
         }
         
-        // Rest of the function can be preserved but won't execute due to return
+        // Play a simple chord based on button position
+        const notes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+        const noteIndex = buttonId % 8;
+        const note = notes[noteIndex];
+        
+        // Stop any currently playing button sounds first
+        if (window.currentButtonSynth) {
+            window.currentButtonSynth.triggerRelease();
+        }
+        
+        // Create a new synth with better settings
+        window.currentButtonSynth = new Tone.Synth({
+            oscillator: {
+                type: 'triangle'
+            },
+            envelope: {
+                attack: 0.01,
+                decay: 0.2,
+                sustain: 0.3,
+                release: 1.0
+            }
+        }).toDestination();
+        
+        console.log('Playing button note:', note);
+        window.currentButtonSynth.triggerAttackRelease(note, "8n");
+        
+        // Update the chord name display
+        updateChordDisplay();
     }
     
     function handleButtonReleaseAction(buttonId) {
@@ -227,7 +259,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function processMotionData(data) {
-        console.log('Motion data:', data);
+        // Skip if motion sounds are disabled
+        if (!motionSoundsEnabled) {
+            return;
+        }
+        
+        // Only process motion data periodically to prevent constant triggering
+        const now = Date.now();
+        if (now - lastMotionProcessTime < MOTION_THROTTLE) {
+            return; // Skip processing if too soon since last update
+        }
+        lastMotionProcessTime = now;
+        
+        console.log('Processing motion data:', data);
         // Only process if audio engine is ready
         if (!audioEngine || !audioEngine.initialized) {
             console.log('Audio engine not ready');
@@ -237,6 +281,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Get notes based on motion data
         const notes = ChordTheory.processMotionData(data);
         console.log('Notes to play:', notes);
+        
+        // Release previous notes before playing new ones
+        audioEngine.stopChord();
+        audioEngine.stopBassNote();
         
         // Play the notes
         if (notes.length > 0) {
@@ -258,19 +306,6 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Audio engine initialized');
     }
     
-    function startAccelerometerListener(callback) {
-        // Placeholder - will be implemented in accelerometer.js
-        console.log('Accelerometer listener started');
-        
-        // Simulate motion data for testing
-        setInterval(() => {
-            callback({
-                roll: Math.random() * 90 - 45,  // -45 to 45
-                pitch: Math.random() * 90 - 45  // -45 to 45
-            });
-        }, 100);
-    }
-    
     // Required for iOS to allow audio
     document.body.addEventListener('touchstart', function() {
         if (Tone.context.state !== 'running') {
@@ -284,4 +319,97 @@ document.addEventListener('DOMContentLoaded', () => {
         const testSynth = new Tone.Synth().toDestination();
         testSynth.triggerAttackRelease("C4", "8n");
     });
+
+    // Add this function
+    function toggleMotionSounds() {
+        motionSoundsEnabled = !motionSoundsEnabled;
+        
+        // Stop any currently playing sounds
+        if (!motionSoundsEnabled && audioEngine) {
+            audioEngine.stopChord();
+            audioEngine.stopBassNote();
+        }
+        
+        // Show status to user
+        alert(motionSoundsEnabled ? 
+            "Motion sounds enabled" : 
+            "Motion sounds disabled (only buttons will make sound)");
+    }
+
+    // Add a double-tap handler to the motion display area
+    document.getElementById('motion-display').addEventListener('dblclick', toggleMotionSounds);
+
+    function handleButtonRelease(buttonId) {
+        console.log('Button released:', buttonId);
+        
+        // Release the button sound
+        if (window.currentButtonSynth) {
+            window.currentButtonSynth.triggerRelease();
+        }
+    }
+
+    // Add this function to your app.js
+    function updateOrientationVisual(roll, pitch) {
+        const visual = document.getElementById('orientation-visual');
+        if (!visual) {
+            const container = document.createElement('div');
+            container.id = 'orientation-visual';
+            container.style.width = '100px';
+            container.style.height = '100px';
+            container.style.margin = '1rem auto';
+            container.style.border = '2px solid white';
+            container.style.borderRadius = '50%';
+            container.style.position = 'relative';
+            container.style.overflow = 'hidden';
+            
+            const indicator = document.createElement('div');
+            indicator.id = 'orientation-indicator';
+            indicator.style.width = '20px';
+            indicator.style.height = '20px';
+            indicator.style.backgroundColor = 'white';
+            indicator.style.borderRadius = '50%';
+            indicator.style.position = 'absolute';
+            indicator.style.top = '50%';
+            indicator.style.left = '50%';
+            indicator.style.transform = 'translate(-50%, -50%)';
+            
+            container.appendChild(indicator);
+            document.getElementById('motion-display').after(container);
+        }
+        
+        // Update the indicator position based on roll and pitch
+        const indicator = document.getElementById('orientation-indicator');
+        const maxAngle = 45; // Maximum angle to represent
+        const centerX = 50;
+        const centerY = 50;
+        
+        // Convert angles to position (constrained to the circle)
+        const x = centerX + (roll / maxAngle) * 40;
+        const y = centerY + (pitch / maxAngle) * 40;
+        
+        indicator.style.left = `${x}%`;
+        indicator.style.top = `${y}%`;
+    }
+
+    // Add this after creating your orientation visual
+    function addResetButton() {
+        const resetButton = document.createElement('button');
+        resetButton.textContent = 'Reset Orientation';
+        resetButton.className = 'reset-button';
+        resetButton.style.margin = '1rem auto';
+        resetButton.style.display = 'block';
+        
+        resetButton.addEventListener('click', () => {
+            // Reset the orientation baseline
+            if (motionSensor && typeof motionSensor.resetOrientation === 'function') {
+                motionSensor.resetOrientation();
+                alert('Orientation reset. Hold your device in the neutral position.');
+            }
+        });
+        
+        document.getElementById('orientation-visual').after(resetButton);
+    }
+
+    // Call this after creating the orientation visual
+    addResetButton();
 }); 
