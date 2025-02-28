@@ -604,5 +604,43 @@ const ChordTheory = {
     }
 };
 
+// Test function - can be removed after testing
+function testVoicings() {
+    console.log("TESTING CONTRARY MOTION VOICINGS");
+    console.log("--------------------------------");
+    
+    // Save original pivot pitch
+    const originalPivot = this.pivotPitch;
+    this.pivotPitch = 60; // Set C4 as pivot for testing
+    
+    const tests = [
+      { name: "Unison", input: 60, expected: [60] },
+      { name: "Third", input: 59, expected: [59, 62] },
+      { name: "Triad", input: 57, expected: [57, 60, 64] },
+      { name: "Shell", input: 56, expected: [56, 59, 65] },
+      { name: "Octave Chord", input: 55, expected: [55, 60, 64, 67] },
+      { name: "Drop 2", input: 53, expected: [53, 59, 62, 68] },
+      { name: "Drop 3", input: 52, expected: [52, 60, 67, 69] },
+      { name: "Drop 2&4", input: 50, expected: [50, 56, 65, 71] },
+      { name: "Double Octave", input: 48, expected: [48, 57, 64, 72] }
+    ];
+    
+    let passed = 0;
+    
+    tests.forEach(test => {
+      const result = this.contraryMotion(test.input);
+      console.log(`${test.name}: [${result}] - ${JSON.stringify(result) === JSON.stringify(test.expected) ? "✓" : "✗"}`);
+      if (JSON.stringify(result) === JSON.stringify(test.expected)) passed++;
+    });
+    
+    console.log(`\nPassed ${passed}/${tests.length} tests`);
+    
+    // Restore original pivot pitch
+    this.pivotPitch = originalPivot;
+  }
+  
+  // Add this method to ChordTheory
+  ChordTheory.testVoicings = testVoicings;
+
 // Export as global if not using modules
 window.ChordTheory = ChordTheory; 
