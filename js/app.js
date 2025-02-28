@@ -21,27 +21,31 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Create the touch grid UI
     function createTouchGrid() {
-        // Define button labels/functions
+        // Define button labels/functions in reverse order (control buttons at top, Roman numerals at bottom)
         const buttonConfig = [
-            { label: "I", function: "tonic" },
-            { label: "ii", function: "supertonic" },
-            { label: "iii", function: "mediant" },
-            { label: "IV", function: "subdominant" },
-            
-            { label: "V", function: "dominant" },
-            { label: "vi", function: "submediant" },
-            { label: "vii°", function: "leading" },
-            { label: "I+", function: "tonicOctave" },
-            
-            { label: "Off", function: "offChord" },
-            { label: "Dom", function: "makeDominant" },
-            { label: "Alt", function: "alternate" },
-            { label: "Fam↑", function: "familyUp" },
-            
-            { label: "Fam↓", function: "familyDown" },
-            { label: "Fam→", function: "familyAcross" },
+            // Top row - Control buttons (previously bottom)
+            { label: "Oct↓", function: "octaveDown" },
             { label: "Oct↑", function: "octaveUp" },
-            { label: "Oct↓", function: "octaveDown" }
+            { label: "Fam→", function: "familyAcross" },
+            { label: "Fam↓", function: "familyDown" },
+            
+            // Second row - More control buttons
+            { label: "Fam↑", function: "familyUp" },
+            { label: "Alt", function: "alternate" },
+            { label: "Dom", function: "makeDominant" },
+            { label: "Off", function: "offChord" },
+            
+            // Third row - Upper chord numerals
+            { label: "I", function: "tonicOctave" },
+            { label: "vii°", function: "leading" },
+            { label: "vi", function: "submediant" },
+            { label: "V", function: "dominant" },
+            
+            // Bottom row - Lower chord numerals
+            { label: "IV", function: "subdominant" },
+            { label: "iii", function: "mediant" },
+            { label: "ii", function: "supertonic" },
+            { label: "I", function: "tonic" }
         ];
         
         // Create 16 buttons (4x4 grid)
@@ -93,16 +97,31 @@ document.addEventListener('DOMContentLoaded', () => {
         Tone.start().then(() => {
             console.log('Audio context started successfully');
             audioEngine = initAudioEngine();
+            console.log('Audio engine initialized:', audioEngine);
             
-            // Play a quick test tone to verify audio works
-            const testSynth = new Tone.Synth().toDestination();
-            testSynth.triggerAttackRelease("C4", "8n");
+            // Play a test sound immediately to confirm audio works
+            setTimeout(() => {
+                if (audioEngine && audioEngine.initialized) {
+                    console.log('Playing test tone to confirm audio');
+                    audioEngine.synths[0].triggerAttackRelease("C4", "8n");
+                } else {
+                    console.error('Audio engine not initialized properly');
+                }
+            }, 1000);
             
             // Start listening to device motion
             motionSensor = startAccelerometerListener((data) => {
                 // Update UI with motion data
                 rollValue.textContent = data.roll.toFixed(1);
                 pitchValue.textContent = data.pitch.toFixed(1);
+                
+                // Add more debug info
+                document.getElementById('motion-display').innerHTML = `
+                    <div class="motion-value">Roll: <span id="roll-value">${data.roll.toFixed(1)}</span>°</div>
+                    <div class="motion-value">Pitch: <span id="pitch-value">${data.pitch.toFixed(1)}</span>°</div>
+                    <div class="motion-value">Norm Roll: ${data.normalizedRoll?.toFixed(2) || 'N/A'}</div>
+                    <div class="motion-value">Norm Pitch: ${data.normalizedPitch?.toFixed(2) || 'N/A'}</div>
+                `;
                 
                 // Process motion for sound generation
                 processMotionData(data);
@@ -137,21 +156,44 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleButtonPress(buttonId) {
         console.log('Button pressed:', buttonId);
         
-        // For testing, assign chord numerals to buttons 0-7
-        if (buttonId >= 0 && buttonId <= 7) {
-            // Bottom row buttons are chord numerals
-            ChordTheory.chordNumeral = buttonId + 1;
+        // Map the new button IDs to functions based on position
+        // Bottom row contains chord numerals 1-4
+        if (buttonId >= 12 && buttonId <= 15) {
+            // Convert from button ID to chord numeral (15 → 1, 14 → 2, etc.)
+            const numeralIndex = 15 - buttonId;
+            ChordTheory.chordNumeral = numeralIndex + 1;
             ChordTheory.offChordLock = false;
-        } else if (buttonId === 8) {
-            // Toggle off chord
+        } 
+        // Third row contains chord numerals 5-8
+        else if (buttonId >= 8 && buttonId <= 11) {
+            // Convert from button ID to chord numeral (11 → 5, 10 → 6, etc.)
+            const numeralIndex = 11 - buttonId + 4;
+            ChordTheory.chordNumeral = numeralIndex + 1;
+            ChordTheory.offChordLock = false;
+        }
+        // Other functional buttons
+        else if (buttonId === 7) { // Off button
             ChordTheory.offChordLock = !ChordTheory.offChordLock;
-        } else if (buttonId === 9) {
-            // Toggle dominant
+        } 
+        else if (buttonId === 6) { // Dom button
             ChordTheory.dominant = !ChordTheory.dominant;
         }
+        else if (buttonId === 5) { // Alt button
+            ChordTheory.setAlternate(!ChordTheory.alternate);
+        }
         
-        // Play a test chord
-        const testChord = [60, 64, 67, 71]; // Cmaj7
+        // Generate a proper chord based on the current settings
+        if (!audioEngine || !audioEngine.initialized) {
+            console.error('Audio engine not ready!');
+            return;
+        }
+        
+        // Play a simple C major chord for testing
+        const testChord = buttonId % 2 === 0 ? 
+            [60, 64, 67] :  // C major 
+            [60, 63, 67];   // C minor
+        
+        console.log('Playing test chord:', testChord);
         audioEngine.playChord(testChord);
         
         // Play bass note

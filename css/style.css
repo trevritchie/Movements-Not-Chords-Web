@@ -107,10 +107,19 @@ h1 {
 #motion-display {
     margin: 1rem 0;
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
 }
 
 #current-chord {
     font-size: 1.2rem;
     margin-top: 1rem;
+}
+
+.motion-value {
+    font-size: 1.2rem;
+    background-color: rgba(0,0,0,0.3);
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
 } 
